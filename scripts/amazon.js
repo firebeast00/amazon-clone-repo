@@ -1,5 +1,6 @@
 import { products } from "../data/products.js";
-import { cart } from "../data/cart.js";
+import { cart, addToCart, calculateCartQuantity } from "../data/cart.js";
+import { currencyFormat } from "./utils/money.js";
 let productHTML = "";
 products.forEach((product) => {
   productHTML += `
@@ -22,7 +23,7 @@ products.forEach((product) => {
           </div>
 
           <div class="product-price">
-            $${(product.priceCents / 100).toFixed(2)}
+            $${currencyFormat(product.priceCents)}
           </div>
 
           <div class="product-quantity-container">
@@ -56,43 +57,31 @@ products.forEach((product) => {
 });
 document.querySelector(".js-products-grid").innerHTML = productHTML;
 
+export function updateCartQuantity() {
+  let cartQuantity = calculateCartQuantity();
+  document.querySelector(".js-cart-quantity").innerHTML = cartQuantity;
+}
+updateCartQuantity();
+
 let addedMessageTimeouts = {};
 const button = document.querySelectorAll(".js-add-to-cart-button");
+
 button.forEach((button) => {
   button.addEventListener("click", () => {
     const { productId } = button.dataset;
     const quantitySelector = document.querySelector(
       `.js-quantity-selector-${productId}`
     ).value;
-
     const quantity = Number(quantitySelector);
-    let matchingItem;
-    cart.forEach((item) => {
-      if (productId === item.productId) {
-        matchingItem = item;
-      }
-    });
-    if (matchingItem) {
-      matchingItem.quantity += quantity;
-    } else {
-      cart.push({
-        productId,
-        quantity,
-      });
-    }
-    let cartQuantity = 0;
-    cart.forEach((item) => {
-      cartQuantity += item.quantity;
-    });
 
-    document.querySelector(".js-cart-quantity").innerHTML = cartQuantity;
-    console.log(cart);
+    addToCart(productId, quantity);
+    updateCartQuantity();
 
     const messageElement = document.querySelector(
       `.js-added-to-cart-${productId}`
     );
     messageElement.classList.add("added-to-cart-visible");
-    const previousTimeoutId = addedMessageTimeouts[productId];
+    let previousTimeoutId = addedMessageTimeouts[productId];
     if (previousTimeoutId) {
       clearTimeout(previousTimeoutId);
     }
