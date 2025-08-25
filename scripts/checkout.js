@@ -1,179 +1,118 @@
-import {
-  cart,
-  removeFromCart,
-  calculateCartQuantity,
-  updateQuantity,
-} from "../data/cart.js";
-import { products } from "../data/products.js";
-import { currencyFormat } from "./utils/money.js";
-import { deliveryOptions } from "../data/deliveryOptions.js";
-import dayjs from "https://unpkg.com/dayjs@1.11.10/esm/index.js";
+/* import { renderCheckoutHeader } from "./checkout/checkoutHeader.js";
+import { renderOrderSummary } from "./checkout/orderSummary.js";
+import { renderPaymentSummary } from "./checkout/paymentSummary.js";
+import { loadProductsFetch } from "../data/products.js";
 
-let cartOrderSummary = "";
-cart.forEach((cartItem) => {
-  const productId = cartItem.productId;
-
-  let matchingItem;
-  products.forEach((product) => {
-    if (product.id === productId) {
-      matchingItem = product;
-    }
-  });
-
-  const deliveryOptionId = cartItem.deliveryOptionId;
-  let deliveryOption;
-
-  deliveryOptions.forEach((option) => {
-    if (option.id === deliveryOptionId) {
-      deliveryOption = option;
-    }
-  });
-
-  const today = dayjs();
-
-  const deliveryDate = today.add(deliveryOption.deliveryDays, "days");
-  const dateString = deliveryDate.format("dddd, MMMM D");
-  cartOrderSummary += `
-            <div class="cart-item-container js-cart-item-container-${
-              matchingItem.id
-            }">
-            <div class="delivery-date">Delivery date: ${dateString} </div>
-
-            <div class="cart-item-details-grid">
-              <img
-                class="product-image"
-                src="${matchingItem.image}"
-              />
-
-              <div class="cart-item-details">
-                <div class="product-name">
-                  ${matchingItem.name}
-                </div>
-                <div class="product-price">$${currencyFormat(
-                  matchingItem.priceCents
-                )}</div>
-                <div class="product-quantity">
-                  <span> Quantity: <span class="quantity-label js-quantity-label-${
-                    matchingItem.id
-                  }"> ${cartItem.quantity}</span> </span>
-                  <span class="update-quantity-link link-primary js-update-quantity-link" data-product-id ="${
-                    matchingItem.id
-                  }">
-                    Update
-                  </span>
-                  <input class="quantity-input js-quantity-input">
-                  <span class="save-quantity-link link-primary js-save-quantity-link">Save</span>
-                  <span class="delete-quantity-link link-primary js-delete-quantity-link" data-product-id="${
-                    cartItem.productId
-                  }">
-                    Delete
-                  </span>
-                </div>
-              </div>
-
-              <div class="delivery-options">
-                <div class="delivery-options-title">
-                  Choose a delivery option:
-                </div>
-                  ${deliveryOptionsHTML(matchingItem, cartItem)}
-               
-                
-              </div>
-            </div>
-          </div>
-  `;
-});
-document.querySelector(".js-order-summary").innerHTML = cartOrderSummary;
-function deliveryOptionsHTML(matchingItem, cartItem) {
-  let html = "";
-  deliveryOptions.forEach((deliveryOption) => {
-    const today = dayjs();
-    const deliveryDate = today.add(deliveryOption.deliveryDays, "days");
-    const dateString = deliveryDate.format("dddd MMMM D");
-    const priceString =
-      deliveryOption.priceCents === 0
-        ? `FREE`
-        : `$${currencyFormat(deliveryOption.priceCents)} -`;
-    const isChecked = deliveryOption.id === cartItem.deliveryOptionId;
-
-    html += `
-                    <div class="delivery-option">
-                  <input
-                    type="radio"
-                    ${isChecked ? `checked` : ``}
-                    class="delivery-option-input"
-                    name="${matchingItem.id}"
-                  />
-                  <div>
-                    <div class="delivery-option-date">${dateString}</div>
-                    <div class="delivery-option-price">${priceString} Shipping</div>
-                  </div>
-                </div>
-    
-    `;
-  });
-  return html;
+async function loadPage() {
+  await loadProductsFetch();
+  renderCheckoutHeader();
+  renderOrderSummary();
+  renderPaymentSummary();
 }
-function updateCartQuantity() {
-  let cartQuantity = calculateCartQuantity();
-  document.querySelector(
-    ".js-header-cart-quantity"
-  ).innerHTML = `${cartQuantity} items`;
-}
-updateCartQuantity();
+loadPage();
+ */
 
-const button = document.querySelectorAll(".js-delete-quantity-link");
-button.forEach((link) => {
-  link.addEventListener("click", () => {
-    const { productId } = link.dataset;
-    removeFromCart(productId);
-    const container = document.querySelector(
-      `.js-cart-item-container-${productId}`
-    );
-    container.remove();
-    updateCartQuantity();
-  });
-});
+import { renderCheckoutHeader } from "./checkout/checkoutHeader.js";
+import { renderOrderSummary } from "./checkout/orderSummary.js";
+import { renderPaymentSummary } from "./checkout/paymentSummary.js";
+import { loadProductsFetch } from "../data/products.js";
 
-const updateButton = document.querySelectorAll(".js-update-quantity-link");
+let initialized = false;
 
-updateButton.forEach((link) => {
-  link.addEventListener("click", () => {
-    const productId = link.dataset.productId;
-
-    const container = document.querySelector(
-      `.js-cart-item-container-${productId}`
-    );
-    container.classList.add("is-editing-quantity");
-
-    const saveLink = document.querySelectorAll(".js-save-quantity-link");
-    saveLink.forEach((link) => {
-      link.addEventListener("click", () => {
-        saveUpdateQuantity(productId);
-
-        container.classList.remove("is-editing-quantity");
-      });
-    });
-  });
-});
-function saveUpdateQuantity(productId) {
-  const inputElement = document.querySelectorAll(".js-quantity-input");
-  inputElement.forEach((input) => {
-    const newQuantity = Number(input.value);
-    if (newQuantity >= 0 && newQuantity < 1000) {
-      updateQuantity(productId, newQuantity);
-    } else {
-      alert("updated Quantity should be greate 0 and less than 1000");
-    }
-
-    document.querySelector(`.js-quantity-label-${productId}`).innerHTML =
-      newQuantity;
-    input.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
-        saveUpdateQuantity();
+async function safeLoadProductsFetch({ retries = 1 } = {}) {
+  let lastErr;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await loadProductsFetch();
+    } catch (err) {
+      lastErr = err;
+      // brief backoff before retrying
+      if (attempt < retries) {
+        await new Promise((r) => setTimeout(r, 300));
       }
-      console.log(e.key);
-    });
-    updateCartQuantity();
-  });
+    }
+  }
+  throw lastErr;
 }
+
+function showStatus(message, { type = "info" } = {}) {
+  // Lightweight global status banner (non-intrusive, only if not present)
+  let el = document.querySelector(".js-global-status");
+  if (!el) {
+    el = document.createElement("div");
+    el.className = "js-global-status";
+    Object.assign(el.style, {
+      position: "fixed",
+      top: "0",
+      left: "0",
+      right: "0",
+      padding: "10px 14px",
+      font: "14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Arial",
+      zIndex: 9999,
+      color: type === "error" ? "#8b1a1a" : "#0b3d2e",
+      background: type === "error" ? "#ffecec" : "#e6fff5",
+      borderBottom: "1px solid rgba(0,0,0,0.06)",
+      textAlign: "center",
+    });
+    document.body.appendChild(el);
+  }
+  el.textContent = message;
+  return el;
+}
+
+function clearStatus() {
+  const el = document.querySelector(".js-global-status");
+  if (el && el.parentNode) el.parentNode.removeChild(el);
+}
+
+function showLoadingPlaceholders() {
+  // If your checkout sections have containers, you can hint loading text.
+  const orderEl = document.querySelector(".js-order-summary");
+  const payEl = document.querySelector(".js-payment-summary");
+  if (orderEl && !orderEl.childElementCount)
+    orderEl.textContent = "Loading order summary…";
+  if (payEl && !payEl.childElementCount)
+    payEl.textContent = "Loading payment summary…";
+}
+
+function clearLoadingPlaceholders() {
+  const orderEl = document.querySelector(".js-order-summary");
+  const payEl = document.querySelector(".js-payment-summary");
+  if (orderEl && orderEl.textContent === "Loading order summary…")
+    orderEl.textContent = "";
+  if (payEl && payEl.textContent === "Loading payment summary…")
+    payEl.textContent = "";
+}
+
+export default async function initCheckoutPage() {
+  if (initialized) return;
+  initialized = true;
+
+  // Minimal loading UX
+  showStatus("Loading products…");
+  showLoadingPlaceholders();
+
+  try {
+    await safeLoadProductsFetch({ retries: 1 });
+
+    // Defer rendering to next microtask for smoother paint
+    await Promise.resolve();
+
+    renderCheckoutHeader();
+    renderOrderSummary();
+    renderPaymentSummary();
+
+    clearLoadingPlaceholders();
+    clearStatus();
+  } catch (err) {
+    clearLoadingPlaceholders();
+    showStatus("Couldn’t load products. Please refresh or try again.", {
+      type: "error",
+    });
+    // Optional: surface error to console for debugging
+    console.error("[checkout] loadProductsFetch failed:", err);
+  }
+}
+
+// Auto-run (keeps same behavior as your original file)
+initCheckoutPage();
